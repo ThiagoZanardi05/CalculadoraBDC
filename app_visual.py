@@ -206,49 +206,77 @@ def gerar_cotacao():
             pontos_disponiveis_str = pontos_disponiveis_str.replace('.', '').replace(',', '.')
         pontos_disponiveis = int(float(pontos_disponiveis_str or 0))
 
+        # --- Variáveis Iniciais ---
+        hotel = ""
+        acomodacao = ""
+        total_chd = 0
+        criancas_0a2, criancas_3a8, criancas_9a11 = 0, 0, 0
+
+        # --- Coleta de Dados e Validação Inicial ---
         if contrato_tipo == "Antigo":
             hotel, acomodacao, temporada = res_combo_hotel.get(), res_combo_acomodacao.get(), res_combo_temporada.get()
             if not all([hotel != "Selecione o Hotel", acomodacao != "Selecione a Acomodação", temporada != "Selecione a Temporada"]): 
                 exibir_resultado_reserva("Erro: Preencha todos os campos do Contrato Antigo."); return
             
-            total_chd = 0
             if hotel == "Bourbon Cataratas":
                 criancas_0a2, criancas_3a8, criancas_9a11 = int(res_entry_criancas_0a2.get() or 0), int(res_entry_criancas_3a8.get() or 0), int(res_entry_criancas_9a11.get() or 0)
                 total_chd = criancas_0a2 + criancas_3a8 + criancas_9a11
             else: total_chd = int(res_entry_criancas_geral.get() or 0)
-            
-            if (adultos + total_chd) > (5 if "Familia" in acomodacao else 4):
-                exibir_resultado_reserva(f"Erro: Ocupação excede o limite para esta categoria."); return
 
+        elif contrato_tipo == "Novo":
+            hotel, tier, temporada, acomodacao, tipo_uso = res_combo_hotel_novo.get(), res_combo_tier_novo.get(), res_combo_temporada_novo.get(), res_combo_acomodacao_novo.get(), res_combo_fracionamento.get()
+            if not all([hotel != "Selecione o Hotel", tier != "Selecione o Tier", temporada != "Selecione a Temporada", acomodacao != "Selecione a Acomodação"]):
+                exibir_resultado_reserva("Erro: Preencha todos os campos do Contrato Novo."); return
+
+            if hotel == "Bourbon Cataratas":
+                criancas_0a2, criancas_3a8, criancas_9a11 = int(res_entry_criancas_0a2.get() or 0), int(res_entry_criancas_3a8.get() or 0), int(res_entry_criancas_9a11.get() or 0)
+                total_chd = criancas_0a2 + criancas_3a8 + criancas_9a11
+            else:
+                total_chd = int(res_entry_criancas_geral.get() or 0)
+
+        # --- Validação de Ocupação ---
+        if (adultos + total_chd) > (5 if "Familia" in acomodacao else 4):
+            exibir_resultado_reserva(f"Erro: Ocupação excede o limite para esta categoria."); return
+
+        # --- Cálculo de Pontos de Hospedagem ---
+        pontuacao_hospedagem = 0
+        if contrato_tipo == "Antigo":
             pontos_semana = TABELA_PONTOS_ANTIGO[hotel][temporada][acomodacao]
-            total_pontos_estadia = math.ceil(((pontos_semana / 7) * total_noites) + ((pontos_semana / 7) * 0.20 * noites_fds))
-            
+            pontuacao_hospedagem = math.ceil(((pontos_semana / 7) * total_noites) + ((pontos_semana / 7) * 0.20 * noites_fds))
+        elif contrato_tipo == "Novo":
+            hotel_key = "Bourbon Atibaia" if hotel == "Bourbon Atibaia" else "Bourbon Cataratas"
+            if tipo_uso == "Abertura de Fracionamento":
+                pontuacao_hospedagem = TABELA_PONTOS_NOVO[hotel_key][temporada][acomodacao]
+
+        # --- Cálculo de Alimentação e Taxas (Unificado) ---
+        total_alim_reais = 0
+        texto_taxa = ""
+        valor_alim_str = res_entry_valor_alim.get()
+        if valor_alim_str:
+            if ',' in valor_alim_str: valor_alim_str = valor_alim_str.replace('.', '').replace(',', '.')
+            valor_alim_dia_adulto = float(valor_alim_str)
+
+            if hotel == "Bourbon Cataratas":
+                pagantes_inteira = adultos + criancas_9a11
+                pagantes_meia = criancas_3a8
+                custo_diario = (pagantes_inteira * valor_alim_dia_adulto) + (pagantes_meia * valor_alim_dia_adulto / 2)
+                total_alim_reais = custo_diario * total_noites
+            else: # Regra para Atibaia
+                total_alim_reais = valor_alim_dia_adulto * adultos * total_noites
+        
+        # --- Geração do Texto Final ---
+        if contrato_tipo == "Antigo":
             texto_resultado = f"*{checkin_str} a {checkout_str}* ({total_noites} noites)\n\n"
             texto_resultado += f"Hotel: *{hotel}*\n"
-            # <<< CORREÇÃO AQUI >>>
             texto_resultado += f"Categoria: *{acomodacao}* ({adultos} adt + {total_chd} chd)\n"
-            texto_resultado += f"Pontuação: *{total_pontos_estadia:,} Pontos*\n"
+            texto_resultado += f"Pontuação: *{pontuacao_hospedagem:,} Pontos*\n"
 
-            valor_alim_str = res_entry_valor_alim.get()
-            if valor_alim_str:
-                if ',' in valor_alim_str:
-                    valor_alim_str = valor_alim_str.replace('.', '').replace(',', '.')
-                valor_alim_dia_adulto = float(valor_alim_str)
-
-                total_alim_dinheiro = 0
-                if hotel == "Bourbon Cataratas":
-                    pagantes_inteira = adultos + criancas_9a11
-                    pagantes_meia = criancas_3a8
-                    custo_diario = (pagantes_inteira * valor_alim_dia_adulto) + (pagantes_meia * valor_alim_dia_adulto / 2)
-                    total_alim_dinheiro = custo_diario * total_noites
-                else: 
-                    total_alim_dinheiro = valor_alim_dia_adulto * adultos * total_noites
-                
-                if res_combo_pagto_alim.get() == "Dinheiro": texto_resultado += f"Alimentação: *R$ {total_alim_dinheiro:,.2f}*\n"
+            if total_alim_reais > 0:
+                if res_combo_pagto_alim.get() == "Dinheiro": texto_resultado += f"Alimentação: *R$ {total_alim_reais:,.2f}*\n"
                 else:
                     valor_ponto_str = res_entry_valor_ponto.get().replace(',', '.')
                     valor_ponto = float(valor_ponto_str)
-                    total_pontos_alim = math.ceil(total_alim_dinheiro / valor_ponto)
+                    total_pontos_alim = math.ceil(total_alim_reais / valor_ponto)
                     texto_resultado += f"Alimentação: *{total_pontos_alim:,} Pontos*\n"
             
             texto_taxa = "Taxa de Utilização: *Sem taxa de utilização*\n"
@@ -265,26 +293,6 @@ def gerar_cotacao():
             exibir_resultado_reserva(texto_resultado)
 
         elif contrato_tipo == "Novo":
-            hotel_ui, tier, temporada, acomodacao, tipo_uso = res_combo_hotel_novo.get(), res_combo_tier_novo.get(), res_combo_temporada_novo.get(), res_combo_acomodacao_novo.get(), res_combo_fracionamento.get()
-            hotel_key = "Bourbon Atibaia" if hotel_ui == "Bourbon Atibaia" else "Bourbon Cataratas"
-
-            if not all([hotel_ui != "Selecione o Hotel", tier != "Selecione o Tier", temporada != "Selecione a Temporada", acomodacao != "Selecione a Acomodação"]):
-                exibir_resultado_reserva("Erro: Preencha todos os campos do Contrato Novo."); return
-            
-            total_chd = int(res_entry_criancas_geral.get() or 0)
-            if (adultos + total_chd) > (5 if "Familia" in acomodacao else 4):
-                exibir_resultado_reserva(f"Erro: Ocupação excede o limite para esta categoria."); return
-
-            pontuacao_hospedagem = TABELA_PONTOS_NOVO[hotel_key][temporada][acomodacao] if tipo_uso == "Abertura de Fracionamento" else 0
-
-            total_alim_reais = 0
-            valor_alim_str = res_entry_valor_alim.get()
-            if valor_alim_str:
-                if ',' in valor_alim_str:
-                    valor_alim_str = valor_alim_str.replace('.', '').replace(',', '.')
-                valor_alim_dia_adulto = float(valor_alim_str)
-                total_alim_reais = valor_alim_dia_adulto * adultos * total_noites
-            
             taxa_diaria = 58.00
             if "Triplo" in acomodacao: taxa_diaria = 86.00
             elif "Familia" in acomodacao: taxa_diaria = 116.00
@@ -302,7 +310,7 @@ def gerar_cotacao():
             
             total_pontos_necessarios = pontuacao_hospedagem + pontos_taxa_clube
             
-            texto_resultado = f"Período: {checkin_str} a {checkout_str} ({total_noites} diárias)\nHotel: {hotel_ui}\n\n"
+            texto_resultado = f"Período: {checkin_str} a {checkout_str} ({total_noites} diárias)\nHotel: {hotel}\n\n"
             texto_resultado += f"Quarto - {tipo_uso}\nCategoria: {acomodacao}\nOcupação: {adultos} adultos e {total_chd} crianças\n"
             texto_resultado += f"Pontuação hospedagem: *{pontuacao_hospedagem:,} pontos*\n"
             texto_resultado += texto_taxa_clube
@@ -311,7 +319,6 @@ def gerar_cotacao():
 
     except (ValueError, KeyError, TypeError) as e:
         exibir_resultado_reserva(f"Erro nos dados: Verifique se todos os campos estão preenchidos corretamente.\nDetalhe: {e}")
-
 def exibir_resultado_reserva(texto):
     res_textbox_resultado.configure(state="normal"); res_textbox_resultado.delete("1.0", "end")
     res_textbox_resultado.insert("1.0", texto); res_textbox_resultado.configure(state="disabled")
