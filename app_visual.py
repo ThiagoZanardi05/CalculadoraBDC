@@ -105,7 +105,6 @@ def exibir_resultado_negociacao(texto):
 def update_reserva_ui(*args):
     contrato = res_combo_contrato.get()
     
-    # Esconde ambos os paineis principais antes de decidir qual mostrar
     res_frame_antigo.grid_forget()
     res_frame_novo.grid_forget()
 
@@ -132,8 +131,13 @@ def update_reserva_ui(*args):
         if res_combo_temporada_novo.get() not in res_combo_temporada_novo.cget("values"): res_combo_temporada_novo.set("Selecione a Temporada")
         if res_combo_acomodacao_novo.get() not in res_combo_acomodacao_novo.cget("values"): res_combo_acomodacao_novo.set("Selecione a Acomodação")
         
-        res_frame_criancas_cataratas.grid_forget()
-        res_entry_criancas_geral.grid(row=1, column=1, padx=(10,5), pady=(0,5), sticky="ew")
+        # <<< CORREÇÃO AQUI >>>
+        if selected_hotel_novo == "Bourbon Cataratas":
+            res_entry_criancas_geral.grid_forget()
+            res_frame_criancas_cataratas.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        else:
+            res_frame_criancas_cataratas.grid_forget()
+            res_entry_criancas_geral.grid(row=1, column=1, padx=(10,5), pady=(0,5), sticky="ew")
 
     else: # Contrato Antigo
         res_frame_novo.grid_forget()
@@ -164,7 +168,7 @@ def update_reserva_ui(*args):
 
 def toggle_valor_ponto_field(*args):
     if res_combo_pagto_alim.get() == "Por Pontos":
-        res_entry_valor_ponto.grid(row=1, column=1, padx=(5,0), sticky="ew")
+        res_entry_valor_ponto.grid(row=1, column=2, padx=(5,0), sticky="ew") # <<< CORREÇÃO AQUI
     else:
         res_entry_valor_ponto.grid_forget()
 
@@ -196,7 +200,11 @@ def gerar_cotacao():
         if total_noites <= 0: exibir_resultado_reserva("Erro: Data de Check-out inválida."); return
         adultos = int(res_entry_adultos.get() or 0)
         noites_fds = int(res_entry_noites_fds.get() or 0)
-        pontos_disponiveis = int(float(res_entry_pontos_disponiveis.get().replace('.','').replace(',','') or 0))
+        
+        pontos_disponiveis_str = res_entry_pontos_disponiveis.get()
+        if ',' in pontos_disponiveis_str:
+            pontos_disponiveis_str = pontos_disponiveis_str.replace('.', '').replace(',', '.')
+        pontos_disponiveis = int(float(pontos_disponiveis_str or 0))
 
         if contrato_tipo == "Antigo":
             hotel, acomodacao, temporada = res_combo_hotel.get(), res_combo_acomodacao.get(), res_combo_temporada.get()
@@ -217,23 +225,29 @@ def gerar_cotacao():
             
             texto_resultado = f"*{checkin_str} a {checkout_str}* ({total_noites} noites)\n\n"
             texto_resultado += f"Hotel: *{hotel}*\n"
+            # <<< CORREÇÃO AQUI >>>
             texto_resultado += f"Categoria: *{acomodacao}* ({adultos} adt + {total_chd} chd)\n"
             texto_resultado += f"Pontuação: *{total_pontos_estadia:,} Pontos*\n"
 
-            if (valor_alim_str := res_entry_valor_alim.get().replace('.', '').replace(',', '')):
+            valor_alim_str = res_entry_valor_alim.get()
+            if valor_alim_str:
+                if ',' in valor_alim_str:
+                    valor_alim_str = valor_alim_str.replace('.', '').replace(',', '.')
                 valor_alim_dia_adulto = float(valor_alim_str)
+
                 total_alim_dinheiro = 0
                 if hotel == "Bourbon Cataratas":
                     pagantes_inteira = adultos + criancas_9a11
                     pagantes_meia = criancas_3a8
                     custo_diario = (pagantes_inteira * valor_alim_dia_adulto) + (pagantes_meia * valor_alim_dia_adulto / 2)
                     total_alim_dinheiro = custo_diario * total_noites
-                else: # Regra para Atibaia (Contrato Antigo)
+                else: 
                     total_alim_dinheiro = valor_alim_dia_adulto * adultos * total_noites
                 
                 if res_combo_pagto_alim.get() == "Dinheiro": texto_resultado += f"Alimentação: *R$ {total_alim_dinheiro:,.2f}*\n"
                 else:
-                    valor_ponto = float(res_entry_valor_ponto.get().replace('.', '').replace(',', ''))
+                    valor_ponto_str = res_entry_valor_ponto.get().replace(',', '.')
+                    valor_ponto = float(valor_ponto_str)
                     total_pontos_alim = math.ceil(total_alim_dinheiro / valor_ponto)
                     texto_resultado += f"Alimentação: *{total_pontos_alim:,} Pontos*\n"
             
@@ -264,9 +278,11 @@ def gerar_cotacao():
             pontuacao_hospedagem = TABELA_PONTOS_NOVO[hotel_key][temporada][acomodacao] if tipo_uso == "Abertura de Fracionamento" else 0
 
             total_alim_reais = 0
-            if (valor_alim_str := res_entry_valor_alim.get().replace('.', '').replace(',', '')):
+            valor_alim_str = res_entry_valor_alim.get()
+            if valor_alim_str:
+                if ',' in valor_alim_str:
+                    valor_alim_str = valor_alim_str.replace('.', '').replace(',', '.')
                 valor_alim_dia_adulto = float(valor_alim_str)
-                # <<< CORREÇÃO AQUI: No Contrato Novo, crianças não pagam alimentação em Atibaia (nem em Cataratas, pela falta de regra específica)
                 total_alim_reais = valor_alim_dia_adulto * adultos * total_noites
             
             taxa_diaria = 58.00
@@ -279,7 +295,8 @@ def gerar_cotacao():
             if res_combo_pagto_alim.get() == "Dinheiro":
                 texto_taxa_clube = f"Taxa Clube: *R$ {total_taxa_clube_reais:,.2f}*\n"
             else:
-                valor_ponto = float(res_entry_valor_ponto.get().replace('.', '').replace(',', ''))
+                valor_ponto_str = res_entry_valor_ponto.get().replace(',', '.')
+                valor_ponto = float(valor_ponto_str)
                 pontos_taxa_clube = math.ceil(total_taxa_clube_reais / valor_ponto)
                 texto_taxa_clube = f"Taxa Clube: *{pontos_taxa_clube:,} Pontos*\n"
             
@@ -315,21 +332,28 @@ tab_reservas = tabview.add("Reservas")
 #<editor-fold desc="Layout da Aba de Negociações">
 tab_negociacoes.grid_columnconfigure(0, weight=1)
 neg_label_titulo = ctk.CTkLabel(master=tab_negociacoes, text="Calculadora de Negociações", font=("Roboto", 24, "bold")); neg_label_titulo.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 15))
+
 ctk.CTkLabel(master=tab_negociacoes, text="Tipo de Produto do Sócio", anchor="w").grid(row=1, column=0, columnspan=2, padx=10, pady=(10, 0), sticky="ew")
 neg_combo_produto = ctk.CTkComboBox(master=tab_negociacoes, values=["150.000", "300.000", "450.000 ou 600.000", "1.000.000"]); neg_combo_produto.grid(row=2, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+
 ctk.CTkLabel(master=tab_negociacoes, text="Valor Total do Contrato", anchor="w").grid(row=3, column=0, columnspan=2, padx=10, pady=(5, 0), sticky="ew")
 neg_entry_valor_total = ctk.CTkEntry(master=tab_negociacoes); neg_entry_valor_total.grid(row=4, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+
 ctk.CTkLabel(master=tab_negociacoes, text="Valor Já Pago", anchor="w").grid(row=5, column=0, columnspan=2, padx=10, pady=(5, 0), sticky="ew")
 neg_entry_valor_pago = ctk.CTkEntry(master=tab_negociacoes); neg_entry_valor_pago.grid(row=6, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+
 ctk.CTkLabel(master=tab_negociacoes, text="Quantidade Total de Parcelas", anchor="w").grid(row=7, column=0, columnspan=2, padx=10, pady=(5, 0), sticky="ew")
 neg_entry_qtd_parcelas = ctk.CTkEntry(master=tab_negociacoes); neg_entry_qtd_parcelas.grid(row=8, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+
 neg_checkbox_entrada = ctk.CTkCheckBox(master=tab_negociacoes, text="O cliente dará uma entrada?", command=toggle_entrada_fields); neg_checkbox_entrada.grid(row=9, column=0, columnspan=2, padx=10, pady=15, sticky="w")
 neg_frame_entrada = ctk.CTkFrame(master=tab_negociacoes, fg_color="transparent"); neg_frame_entrada.grid_columnconfigure((0,1), weight=1)
 neg_entry_qtd_entrada = ctk.CTkEntry(master=neg_frame_entrada, placeholder_text="Qtd. parcelas entrada"); neg_entry_qtd_entrada.grid(row=0, column=0, padx=(0,5), pady=5, sticky="ew")
 neg_entry_valor_entrada = ctk.CTkEntry(master=neg_frame_entrada, placeholder_text="Valor parcela entrada"); neg_entry_valor_entrada.grid(row=0, column=1, padx=(5,0), pady=5, sticky="ew")
+
 neg_frame_botoes = ctk.CTkFrame(master=tab_negociacoes, fg_color="transparent"); neg_frame_botoes.grid(row=10, column=0, columnspan=2, padx=10, pady=10); neg_frame_botoes.grid_columnconfigure((0, 1), weight=1)
 neg_button_gerar = ctk.CTkButton(master=neg_frame_botoes, text="Gerar Proposta", command=calcular_proposta); neg_button_gerar.grid(row=0, column=0, padx=(0, 5), sticky="ew")
 neg_button_limpar = ctk.CTkButton(master=neg_frame_botoes, text="Limpar", command=limpar_campos_negociacao, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE")); neg_button_limpar.grid(row=0, column=1, padx=(5, 0), sticky="ew")
+
 neg_textbox_resultado = ctk.CTkTextbox(master=tab_negociacoes, font=("Consolas", 14), state="disabled", wrap="word"); neg_textbox_resultado.grid(row=11, column=0, columnspan=2, padx=10, pady=10, sticky="nsew"); tab_negociacoes.grid_rowconfigure(11, weight=1)
 neg_label_creditos = ctk.CTkLabel(master=tab_negociacoes, text="Feito por Thiago Zanardi", font=("Roboto", 10)); neg_label_creditos.grid(row=12, column=0, columnspan=2, padx=10, pady=(10, 5))
 #</editor-fold>
