@@ -1,8 +1,23 @@
 import customtkinter as ctk
+import tkinter.messagebox
 import math
 from datetime import datetime
 import os
 import sys
+
+def check_expiration():
+    try:
+        expiration_date = datetime(2025, 8, 8)
+        if datetime.now() > expiration_date:
+            root = ctk.CTk()
+            root.withdraw()
+            tkinter.messagebox.showerror("Licença Expirada", "Período de teste expirou, contatar o desenvolvedor (Thiago Zanardi).")
+            sys.exit() 
+    except Exception as e:
+        print(f"Erro na verificação de data: {e}")
+
+# Chame a função para executar a verificação
+check_expiration()
 
 def resource_path(relative_path):
     """ Retorna o caminho absoluto para o recurso, funcionando tanto no modo de desenvolvimento quanto no PyInstaller """
@@ -204,6 +219,7 @@ def limpar_campos_reserva():
     exibir_resultado_reserva("")
     res_label_titulo.focus()
 
+
 def gerar_cotacao():
     try:
         contrato_tipo = res_combo_contrato.get()
@@ -292,8 +308,7 @@ def gerar_cotacao():
             if (adultos + total_chd) > (5 if "Familia" in acomodacao else 4):
                 exibir_resultado_reserva(f"Erro: Ocupação excede o limite para esta categoria."); return
 
-            pontuacao_hospedagem = TABELA_PONTOS_NOVO[hotel_key][temporada][acomodacao] if tipo_uso == "Abertura de Fracionamento" else 0
-
+            pontuacao_hospedagem = TABELA_PONTOS_NOVO[hotel_key][temporada][acomodacao] if tipo_uso in ["Abertura de Fracionamento", "Semana Completa"] else 0
             total_alim_reais = 0
             valor_alim_str = res_entry_valor_alim.get()
             if valor_alim_str:
@@ -311,7 +326,12 @@ def gerar_cotacao():
             taxa_diaria = 58.00
             if "Triplo" in acomodacao: taxa_diaria = 86.00
             elif "Familia" in acomodacao: taxa_diaria = 116.00
-            total_taxa_utilizacao_reais = taxa_diaria * total_noites
+
+            if tipo_uso == "Utilização de Fracionamento":
+                total_taxa_utilizacao_reais = 0
+            else:  # Para "Abertura de Fracionamento" e "Semana Completa"
+                total_taxa_utilizacao_reais = taxa_diaria * 7
+
             total_taxa_clube_reais = total_alim_reais + total_taxa_utilizacao_reais
             
             pontos_taxa_clube = 0; texto_taxa_clube = ""
@@ -490,7 +510,7 @@ res_combo_temporada_novo = ctk.CTkComboBox(res_frame_novo, values=[], height=35,
 res_combo_temporada_novo.grid(row=1, column=0, padx=(0,5), pady=5, sticky="ew")
 res_combo_acomodacao_novo = ctk.CTkComboBox(res_frame_novo, values=[], height=35, button_color=PRIMARY_COLOR, corner_radius=8)
 res_combo_acomodacao_novo.grid(row=1, column=1, padx=(5,0), pady=5, sticky="ew")
-res_combo_fracionamento = ctk.CTkComboBox(res_frame_novo, values=["Abertura de Fracionamento", "Utilização de Fracionamento"], height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_fracionamento = ctk.CTkComboBox(res_frame_novo, values=["Abertura de Fracionamento", "Utilização de Fracionamento", "Semana Completa"], height=35, button_color=PRIMARY_COLOR, corner_radius=8)
 res_combo_fracionamento.grid(row=2, column=0, columnspan=2, padx=0, pady=5, sticky="ew")
 
 # --- FRAME DETALHES DA ESTADIA ---
