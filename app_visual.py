@@ -1,6 +1,18 @@
 import customtkinter as ctk
 import math
 from datetime import datetime
+import os
+import sys
+
+def resource_path(relative_path):
+    """ Retorna o caminho absoluto para o recurso, funcionando tanto no modo de desenvolvimento quanto no PyInstaller """
+    try:
+        # PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 #<editor-fold desc="Tabela de Pontos e Dados">
 # TABELA PARA CONTRATO ANTIGO
@@ -66,7 +78,7 @@ def calcular_proposta():
             qtd_parcelas_entrada = int(neg_entry_qtd_entrada.get()); valor_parcela_entrada = float(neg_entry_valor_entrada.get().replace('.', '').replace(',', '.'))
             total_entrada = qtd_parcelas_entrada * valor_parcela_entrada
             texto_entrada = (f"PAGAMENTO DE ENTRADA:\n"
-                             f"• {qtd_parcelas_entrada}x parcelas de R$ {valor_parcela_entrada:,.2f} devem ser pagas para iniciar a negociação.\n"
+                             f"• {f'{qtd_parcelas_entrada}x parcelas de R$ {valor_parcela_entrada:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')} devem ser pagas para iniciar a negociação.\n"
                              f"------------------------------------------------------\n")
         saldo_para_renegociar = saldo_devedor - total_entrada; qtd_parcelas_disponiveis = qtd_parcelas_contrato_original - qtd_parcelas_entrada
         if qtd_parcelas_disponiveis < 6:
@@ -78,21 +90,21 @@ def calcular_proposta():
         if tipo_produto == "Selecione o Tipo de Produto": exibir_resultado_negociacao("Erro: Selecione um tipo de produto válido."); return
         valor_parcela_reduzida = valores_reduzidos[tipo_produto]; total_pago_na_reducao = 6 * valor_parcela_reduzida
         if saldo_para_renegociar < total_pago_na_reducao:
-            exibir_resultado_negociacao(f"Proposta Inválida!\nO saldo restante após a entrada (R$ {saldo_para_renegociar:,.2f}) "
-                        f"é menor que o valor da redução (R$ {total_pago_na_reducao:,.2f})."); return
+            exibir_resultado_negociacao(f"Proposta Inválida!\nO saldo restante após a entrada (R$ {f'{saldo_para_renegociar:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')}) "
+                        f"é menor que o valor da redução (R$ {f'{total_pago_na_reducao:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')} )."); return
         saldo_devedor_apos_reducao = saldo_para_renegociar - total_pago_na_reducao
         parcelas_restantes_normais = qtd_parcelas_disponiveis - 6
         if parcelas_restantes_normais <= 0:
             proposta_renegociacao = (f"PROPOSTA DE RENEGOCIAÇÃO:\n\n"
-                                    f"• As 6 parcelas de R$ {valor_parcela_reduzida:,.2f} quitam a dívida.")
+                                    f"• As 6 parcelas de R$ {f'{valor_parcela_reduzida:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')} quitam a dívida.")
         else:
             valor_base_nova_parcela = saldo_devedor_apos_reducao / parcelas_restantes_normais
             parcela_padrao_arredondada = math.floor(valor_base_nova_parcela)
             ultima_parcela_ajuste = saldo_devedor_apos_reducao - (parcela_padrao_arredondada * (parcelas_restantes_normais - 1))
             proposta_renegociacao = (f"PROPOSTA DE RENEGOCIAÇÃO:\n\n"
-                                    f"• 6x parcelas de R$ {valor_parcela_reduzida:,.2f}\n"
-                                    f"• {parcelas_restantes_normais - 1}x parcelas de R$ {parcela_padrao_arredondada:,.2f}\n"
-                                    f"• 1x parcela de ajuste de R$ {ultima_parcela_ajuste:,.2f}")
+                                    f"• 6x parcelas de R$ {f'{valor_parcela_reduzida:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')} \n"
+                                    f"• {parcelas_restantes_normais - 1}x parcelas de R$ {f'{parcela_padrao_arredondada:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')} \n"
+                                    f"• 1x parcela de ajuste de R$ {f'{ultima_parcela_ajuste:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')}")
         exibir_resultado_negociacao(texto_entrada + proposta_renegociacao)
     except (ValueError, KeyError, TypeError):
         exibir_resultado_negociacao("Erro: Verifique se todos os campos estão preenchidos com números válidos.")
@@ -108,8 +120,24 @@ def update_reserva_ui(*args):
     res_frame_antigo.grid_forget()
     res_frame_novo.grid_forget()
 
+    hotel_selecionado_agora = ""
     if contrato == "Novo":
-        res_frame_novo.grid(row=2, column=0, padx=0, pady=0, sticky="ew")
+        hotel_selecionado_agora = res_combo_hotel_novo.get()
+    else: # Contrato Antigo
+        hotel_selecionado_agora = res_combo_hotel.get()
+
+    # LÓGICA CORRIGIDA PARA EXPANDIR O CAMPO DE ATIBAIA
+    if hotel_selecionado_agora == "Bourbon Cataratas":
+        res_entry_criancas_geral.grid_forget()
+        # O frame de cataratas se expande e mostra os 3 campos internos
+        res_frame_criancas_cataratas.grid(row=0, column=0, sticky="ew")
+    else: # Bourbon Atibaia ou nenhum hotel selecionado
+        res_frame_criancas_cataratas.grid_forget()
+        # O campo geral de crianças agora se expande para preencher o container
+        res_entry_criancas_geral.grid(row=0, column=0, sticky="ew")
+
+    if contrato == "Novo":
+        res_frame_novo.grid(row=0, column=0, sticky="ew")
         
         selected_hotel_novo = res_combo_hotel_novo.get()
         selected_tier = res_combo_tier_novo.get()
@@ -130,18 +158,10 @@ def update_reserva_ui(*args):
 
         if res_combo_temporada_novo.get() not in res_combo_temporada_novo.cget("values"): res_combo_temporada_novo.set("Selecione a Temporada")
         if res_combo_acomodacao_novo.get() not in res_combo_acomodacao_novo.cget("values"): res_combo_acomodacao_novo.set("Selecione a Acomodação")
-        
-        # <<< CORREÇÃO AQUI >>>
-        if selected_hotel_novo == "Bourbon Cataratas":
-            res_entry_criancas_geral.grid_forget()
-            res_frame_criancas_cataratas.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-        else:
-            res_frame_criancas_cataratas.grid_forget()
-            res_entry_criancas_geral.grid(row=1, column=1, padx=(10,5), pady=(0,5), sticky="ew")
 
     else: # Contrato Antigo
         res_frame_novo.grid_forget()
-        res_frame_antigo.grid(row=2, column=0, padx=0, pady=0, sticky="ew")
+        res_frame_antigo.grid(row=0, column=0, sticky="ew")
 
         selected_hotel_antigo = res_combo_hotel.get()
         if selected_hotel_antigo == "Selecione o Hotel":
@@ -158,17 +178,10 @@ def update_reserva_ui(*args):
 
         if res_combo_temporada.get() not in res_combo_temporada.cget("values"): res_combo_temporada.set("Selecione a Temporada")
         if res_combo_acomodacao.get() not in res_combo_acomodacao.cget("values"): res_combo_acomodacao.set("Selecione a Acomodação")
-        
-        if selected_hotel_antigo == "Bourbon Cataratas":
-            res_entry_criancas_geral.grid_forget()
-            res_frame_criancas_cataratas.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-        else:
-            res_frame_criancas_cataratas.grid_forget()
-            res_entry_criancas_geral.grid(row=1, column=1, padx=(10,5), pady=(0,5), sticky="ew")
 
 def toggle_valor_ponto_field(*args):
     if res_combo_pagto_alim.get() == "Por Pontos":
-        res_entry_valor_ponto.grid(row=1, column=2, padx=(5,0), sticky="ew") # <<< CORREÇÃO AQUI
+        res_entry_valor_ponto.grid(row=2, column=2, padx=(5, 15), pady=(0,15), sticky="ew")
     else:
         res_entry_valor_ponto.grid_forget()
 
@@ -206,78 +219,48 @@ def gerar_cotacao():
             pontos_disponiveis_str = pontos_disponiveis_str.replace('.', '').replace(',', '.')
         pontos_disponiveis = int(float(pontos_disponiveis_str or 0))
 
-        # --- Variáveis Iniciais ---
-        hotel = ""
-        acomodacao = ""
-        total_chd = 0
-        criancas_0a2, criancas_3a8, criancas_9a11 = 0, 0, 0
-
-        # --- Coleta de Dados e Validação Inicial ---
         if contrato_tipo == "Antigo":
             hotel, acomodacao, temporada = res_combo_hotel.get(), res_combo_acomodacao.get(), res_combo_temporada.get()
             if not all([hotel != "Selecione o Hotel", acomodacao != "Selecione a Acomodação", temporada != "Selecione a Temporada"]): 
                 exibir_resultado_reserva("Erro: Preencha todos os campos do Contrato Antigo."); return
             
+            total_chd = 0
             if hotel == "Bourbon Cataratas":
                 criancas_0a2, criancas_3a8, criancas_9a11 = int(res_entry_criancas_0a2.get() or 0), int(res_entry_criancas_3a8.get() or 0), int(res_entry_criancas_9a11.get() or 0)
                 total_chd = criancas_0a2 + criancas_3a8 + criancas_9a11
             else: total_chd = int(res_entry_criancas_geral.get() or 0)
+            
+            if (adultos + total_chd) > (5 if "Familia" in acomodacao else 4):
+                exibir_resultado_reserva(f"Erro: Ocupação excede o limite para esta categoria."); return
 
-        elif contrato_tipo == "Novo":
-            hotel, tier, temporada, acomodacao, tipo_uso = res_combo_hotel_novo.get(), res_combo_tier_novo.get(), res_combo_temporada_novo.get(), res_combo_acomodacao_novo.get(), res_combo_fracionamento.get()
-            if not all([hotel != "Selecione o Hotel", tier != "Selecione o Tier", temporada != "Selecione a Temporada", acomodacao != "Selecione a Acomodação"]):
-                exibir_resultado_reserva("Erro: Preencha todos os campos do Contrato Novo."); return
-
-            if hotel == "Bourbon Cataratas":
-                criancas_0a2, criancas_3a8, criancas_9a11 = int(res_entry_criancas_0a2.get() or 0), int(res_entry_criancas_3a8.get() or 0), int(res_entry_criancas_9a11.get() or 0)
-                total_chd = criancas_0a2 + criancas_3a8 + criancas_9a11
-            else:
-                total_chd = int(res_entry_criancas_geral.get() or 0)
-
-        # --- Validação de Ocupação ---
-        if (adultos + total_chd) > (5 if "Familia" in acomodacao else 4):
-            exibir_resultado_reserva(f"Erro: Ocupação excede o limite para esta categoria."); return
-
-        # --- Cálculo de Pontos de Hospedagem ---
-        pontuacao_hospedagem = 0
-        if contrato_tipo == "Antigo":
             pontos_semana = TABELA_PONTOS_ANTIGO[hotel][temporada][acomodacao]
-            pontuacao_hospedagem = math.ceil(((pontos_semana / 7) * total_noites) + ((pontos_semana / 7) * 0.20 * noites_fds))
-        elif contrato_tipo == "Novo":
-            hotel_key = "Bourbon Atibaia" if hotel == "Bourbon Atibaia" else "Bourbon Cataratas"
-            if tipo_uso == "Abertura de Fracionamento":
-                pontuacao_hospedagem = TABELA_PONTOS_NOVO[hotel_key][temporada][acomodacao]
-
-        # --- Cálculo de Alimentação e Taxas (Unificado) ---
-        total_alim_reais = 0
-        texto_taxa = ""
-        valor_alim_str = res_entry_valor_alim.get()
-        if valor_alim_str:
-            if ',' in valor_alim_str: valor_alim_str = valor_alim_str.replace('.', '').replace(',', '.')
-            valor_alim_dia_adulto = float(valor_alim_str)
-
-            if hotel == "Bourbon Cataratas":
-                pagantes_inteira = adultos + criancas_9a11
-                pagantes_meia = criancas_3a8
-                custo_diario = (pagantes_inteira * valor_alim_dia_adulto) + (pagantes_meia * valor_alim_dia_adulto / 2)
-                total_alim_reais = custo_diario * total_noites
-            else: # Regra para Atibaia
-                total_alim_reais = valor_alim_dia_adulto * adultos * total_noites
-        
-        # --- Geração do Texto Final ---
-        if contrato_tipo == "Antigo":
+            total_pontos_estadia = math.ceil(((pontos_semana / 7) * total_noites) + ((pontos_semana / 7) * 0.20 * noites_fds))
+            
             texto_resultado = f"*{checkin_str} a {checkout_str}* ({total_noites} noites)\n\n"
             texto_resultado += f"Hotel: *{hotel}*\n"
             texto_resultado += f"Categoria: *{acomodacao}* ({adultos} adt + {total_chd} chd)\n"
-            texto_resultado += f"Pontuação: *{pontuacao_hospedagem:,} Pontos*\n"
+            texto_resultado += f"Pontuação: *{f'{total_pontos_estadia:,}'.replace(',', '.')} Pontos*\n"
 
-            if total_alim_reais > 0:
-                if res_combo_pagto_alim.get() == "Dinheiro": texto_resultado += f"Alimentação: *R$ {total_alim_reais:,.2f}*\n"
+            valor_alim_str = res_entry_valor_alim.get()
+            if valor_alim_str:
+                if ',' in valor_alim_str: valor_alim_str = valor_alim_str.replace('.', '').replace(',', '.')
+                valor_alim_dia_adulto = float(valor_alim_str)
+
+                total_alim_dinheiro = 0
+                if hotel == "Bourbon Cataratas":
+                    pagantes_inteira = adultos + criancas_9a11
+                    pagantes_meia = criancas_3a8
+                    custo_diario = (pagantes_inteira * valor_alim_dia_adulto) + (pagantes_meia * valor_alim_dia_adulto / 2)
+                    total_alim_dinheiro = custo_diario * total_noites
+                else: 
+                    total_alim_dinheiro = valor_alim_dia_adulto * adultos * total_noites
+                
+                if res_combo_pagto_alim.get() == "Dinheiro": texto_resultado += f"Alimentação: *R$ {f'{total_alim_dinheiro:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')}*\n"
                 else:
                     valor_ponto_str = res_entry_valor_ponto.get().replace(',', '.')
                     valor_ponto = float(valor_ponto_str)
-                    total_pontos_alim = math.ceil(total_alim_reais / valor_ponto)
-                    texto_resultado += f"Alimentação: *{total_pontos_alim:,} Pontos*\n"
+                    total_pontos_alim = math.ceil(total_alim_dinheiro / valor_ponto)
+                    texto_resultado += f"Alimentação: *{f'{total_pontos_alim:,}'.replace(',', '.')} Pontos*\n"
             
             texto_taxa = "Taxa de Utilização: *Sem taxa de utilização*\n"
             if hotel == "Bourbon Cataratas":
@@ -285,14 +268,46 @@ def gerar_cotacao():
                 if "Triplo" in acomodacao: taxa_diaria = 86.00
                 elif "Familia" in acomodacao: taxa_diaria = 116.00
                 taxa_total = taxa_diaria * total_noites
-                texto_taxa = f"Taxa de Utilização: *R$ {taxa_total:,.2f}*\n"
+                texto_taxa = f"Taxa de Utilização: *R$ {f'{taxa_total:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')}*\n"
             
             texto_resultado += texto_taxa
-            texto_resultado += f"Pontuação disponível: {pontos_disponiveis:,} pontos\n\n"
+            texto_resultado += f"Pontuação disponível: {f'{pontos_disponiveis:,}'.replace(',', '.')} pontos\n\n"
             texto_resultado += "Gostaria de seguir com a reserva?"
             exibir_resultado_reserva(texto_resultado)
 
         elif contrato_tipo == "Novo":
+            hotel_ui, tier, temporada, acomodacao, tipo_uso = res_combo_hotel_novo.get(), res_combo_tier_novo.get(), res_combo_temporada_novo.get(), res_combo_acomodacao_novo.get(), res_combo_fracionamento.get()
+            hotel_key = "Bourbon Atibaia" if hotel_ui == "Bourbon Atibaia" else "Bourbon Cataratas"
+
+            if not all([hotel_ui != "Selecione o Hotel", tier != "Selecione o Tier", temporada != "Selecione a Temporada", acomodacao != "Selecione a Acomodação"]):
+                exibir_resultado_reserva("Erro: Preencha todos os campos do Contrato Novo."); return
+            
+            total_chd = 0
+            if hotel_ui == "Bourbon Cataratas":
+                criancas_0a2, criancas_3a8, criancas_9a11 = int(res_entry_criancas_0a2.get() or 0), int(res_entry_criancas_3a8.get() or 0), int(res_entry_criancas_9a11.get() or 0)
+                total_chd = criancas_0a2 + criancas_3a8 + criancas_9a11
+            else:
+                total_chd = int(res_entry_criancas_geral.get() or 0)
+            
+            if (adultos + total_chd) > (5 if "Familia" in acomodacao else 4):
+                exibir_resultado_reserva(f"Erro: Ocupação excede o limite para esta categoria."); return
+
+            pontuacao_hospedagem = TABELA_PONTOS_NOVO[hotel_key][temporada][acomodacao] if tipo_uso == "Abertura de Fracionamento" else 0
+
+            total_alim_reais = 0
+            valor_alim_str = res_entry_valor_alim.get()
+            if valor_alim_str:
+                if ',' in valor_alim_str: valor_alim_str = valor_alim_str.replace('.', '').replace(',', '.')
+                valor_alim_dia_adulto = float(valor_alim_str)
+
+                if hotel_ui == "Bourbon Cataratas":
+                    pagantes_inteira = adultos + criancas_9a11
+                    pagantes_meia = criancas_3a8
+                    custo_diario = (pagantes_inteira * valor_alim_dia_adulto) + (pagantes_meia * valor_alim_dia_adulto / 2)
+                    total_alim_reais = custo_diario * total_noites
+                else: 
+                    total_alim_reais = valor_alim_dia_adulto * adultos * total_noites
+            
             taxa_diaria = 58.00
             if "Triplo" in acomodacao: taxa_diaria = 86.00
             elif "Familia" in acomodacao: taxa_diaria = 116.00
@@ -301,20 +316,20 @@ def gerar_cotacao():
             
             pontos_taxa_clube = 0; texto_taxa_clube = ""
             if res_combo_pagto_alim.get() == "Dinheiro":
-                texto_taxa_clube = f"Taxa Clube: *R$ {total_taxa_clube_reais:,.2f}*\n"
+                texto_taxa_clube = f"Taxa Clube: *R$ {f'{total_taxa_clube_reais:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')}*\n"
             else:
                 valor_ponto_str = res_entry_valor_ponto.get().replace(',', '.')
                 valor_ponto = float(valor_ponto_str)
                 pontos_taxa_clube = math.ceil(total_taxa_clube_reais / valor_ponto)
-                texto_taxa_clube = f"Taxa Clube: *{pontos_taxa_clube:,} Pontos*\n"
+                texto_taxa_clube = f"Taxa Clube: *{f'{pontos_taxa_clube:,}'.replace(',', '.')} Pontos*\n"
             
             total_pontos_necessarios = pontuacao_hospedagem + pontos_taxa_clube
             
-            texto_resultado = f"Período: {checkin_str} a {checkout_str} ({total_noites} diárias)\nHotel: {hotel}\n\n"
+            texto_resultado = f"Período: {checkin_str} a {checkout_str} ({total_noites} diárias)\nHotel: {hotel_ui}\n\n"
             texto_resultado += f"Quarto - {tipo_uso}\nCategoria: {acomodacao}\nOcupação: {adultos} adultos e {total_chd} crianças\n"
-            texto_resultado += f"Pontuação hospedagem: *{pontuacao_hospedagem:,} pontos*\n"
+            texto_resultado += f"Pontuação hospedagem: *{f'{pontuacao_hospedagem:,}'.replace(',', '.')} pontos*\n"
             texto_resultado += texto_taxa_clube
-            texto_resultado += f"\n*Total de pontos necessários: {total_pontos_necessarios:,} pontos*"
+            texto_resultado += f"\n*Total de pontos necessários: {f'{total_pontos_necessarios:,}'.replace(',', '.')} pontos*"
             exibir_resultado_reserva(texto_resultado)
 
     except (ValueError, KeyError, TypeError) as e:
@@ -330,93 +345,226 @@ def initialize_ui():
 #</editor-fold>
 
 #<editor-fold desc="Layout da Aplicação Principal">
-ctk.set_appearance_mode("dark"); ctk.set_default_color_theme("blue")
-app = ctk.CTk(); app.title("Calculadora Bourbon Club"); app.geometry("600x850")
-tabview = ctk.CTkTabview(master=app, anchor="w"); tabview.pack(padx=20, pady=10, fill="both", expand=True)
+# --- CONFIGURAÇÕES DE ESTILO ---
+ctk.set_appearance_mode("dark")
+
+FONT_FAMILY = "Roboto"
+TITLE_FONT = (FONT_FAMILY, 26, "bold")
+SECTION_TITLE_FONT = (FONT_FAMILY, 16, "bold")
+LABEL_FONT = (FONT_FAMILY, 13)
+BUTTON_FONT = (FONT_FAMILY, 14, "bold")
+SMALL_LABEL_FONT = (FONT_FAMILY, 12)
+
+PRIMARY_COLOR = "#0D6ABF" # Azul Bourbon
+SECONDARY_COLOR = "#4A4A4A" # Cinza para botões secundários
+FRAME_COLOR = "#2B2B2B"
+BG_COLOR = "#242424"
+TEXT_COLOR = "#DCE4EE"
+
+# --- JANELA PRINCIPAL ---
+app = ctk.CTk()
+app.title("Calculadora de Cotações | Bourbon Club")
+app.geometry("650x700")
+app.resizable(False, False)
+# --- Define o Ícone da Aplicação (de forma segura) ---
+try:
+    icon_path = resource_path("icone.ico")
+    app.iconbitmap(icon_path)
+except Exception as e:
+    print(f"Erro ao carregar o ícone: {e}")
+app.grid_columnconfigure(0, weight=1)
+app.grid_rowconfigure(0, weight=1)
+
+tabview = ctk.CTkTabview(
+    master=app,
+    anchor="w",
+    fg_color=BG_COLOR,
+    segmented_button_selected_color=PRIMARY_COLOR,
+    segmented_button_selected_hover_color="#0A5599",
+    segmented_button_unselected_color=SECONDARY_COLOR
+)
+tabview.pack(padx=15, pady=10, fill="both", expand=True)
+
 tab_negociacoes = tabview.add("Negociações")
 tab_reservas = tabview.add("Reservas")
 
-#<editor-fold desc="Layout da Aba de Negociações">
 tab_negociacoes.grid_columnconfigure(0, weight=1)
-neg_label_titulo = ctk.CTkLabel(master=tab_negociacoes, text="Calculadora de Negociações", font=("Roboto", 24, "bold")); neg_label_titulo.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 15))
+tab_reservas.grid_columnconfigure(0, weight=1)
 
-ctk.CTkLabel(master=tab_negociacoes, text="Tipo de Produto do Sócio", anchor="w").grid(row=1, column=0, columnspan=2, padx=10, pady=(10, 0), sticky="ew")
-neg_combo_produto = ctk.CTkComboBox(master=tab_negociacoes, values=["150.000", "300.000", "450.000 ou 600.000", "1.000.000"]); neg_combo_produto.grid(row=2, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+#<editor-fold desc="Layout da Aba de Negociações">
+# --- FRAME PRINCIPAL ---
+neg_main_frame = ctk.CTkFrame(tab_negociacoes, fg_color="transparent")
+neg_main_frame.pack(fill="both", expand=True, padx=5, pady=5)
+neg_main_frame.grid_columnconfigure(0, weight=1)
+neg_main_frame.grid_rowconfigure(2, weight=1)
 
-ctk.CTkLabel(master=tab_negociacoes, text="Valor Total do Contrato", anchor="w").grid(row=3, column=0, columnspan=2, padx=10, pady=(5, 0), sticky="ew")
-neg_entry_valor_total = ctk.CTkEntry(master=tab_negociacoes); neg_entry_valor_total.grid(row=4, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+# --- TÍTULO ---
+neg_label_titulo = ctk.CTkLabel(neg_main_frame, text="Calculadora de Negociações", font=TITLE_FONT, text_color=PRIMARY_COLOR)
+neg_label_titulo.grid(row=0, column=0, padx=10, pady=(10, 25), sticky="ew")
 
-ctk.CTkLabel(master=tab_negociacoes, text="Valor Já Pago", anchor="w").grid(row=5, column=0, columnspan=2, padx=10, pady=(5, 0), sticky="ew")
-neg_entry_valor_pago = ctk.CTkEntry(master=tab_negociacoes); neg_entry_valor_pago.grid(row=6, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+# --- FRAME DE INPUTS ---
+neg_inputs_frame = ctk.CTkFrame(neg_main_frame, fg_color=FRAME_COLOR, corner_radius=10)
+neg_inputs_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+neg_inputs_frame.grid_columnconfigure((0, 1), weight=1)
 
-ctk.CTkLabel(master=tab_negociacoes, text="Quantidade Total de Parcelas", anchor="w").grid(row=7, column=0, columnspan=2, padx=10, pady=(5, 0), sticky="ew")
-neg_entry_qtd_parcelas = ctk.CTkEntry(master=tab_negociacoes); neg_entry_qtd_parcelas.grid(row=8, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+ctk.CTkLabel(neg_inputs_frame, text="Tipo de Produto do Sócio", font=LABEL_FONT, anchor="w").grid(row=0, column=0, columnspan=2, padx=15, pady=(15, 5), sticky="ew")
+neg_combo_produto = ctk.CTkComboBox(neg_inputs_frame, height=35, values=["150.000", "300.000", "450.000 ou 600.000", "1.000.000"], button_color=PRIMARY_COLOR, corner_radius=8)
+neg_combo_produto.grid(row=1, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="ew")
 
-neg_checkbox_entrada = ctk.CTkCheckBox(master=tab_negociacoes, text="O cliente dará uma entrada?", command=toggle_entrada_fields); neg_checkbox_entrada.grid(row=9, column=0, columnspan=2, padx=10, pady=15, sticky="w")
-neg_frame_entrada = ctk.CTkFrame(master=tab_negociacoes, fg_color="transparent"); neg_frame_entrada.grid_columnconfigure((0,1), weight=1)
-neg_entry_qtd_entrada = ctk.CTkEntry(master=neg_frame_entrada, placeholder_text="Qtd. parcelas entrada"); neg_entry_qtd_entrada.grid(row=0, column=0, padx=(0,5), pady=5, sticky="ew")
-neg_entry_valor_entrada = ctk.CTkEntry(master=neg_frame_entrada, placeholder_text="Valor parcela entrada"); neg_entry_valor_entrada.grid(row=0, column=1, padx=(5,0), pady=5, sticky="ew")
+ctk.CTkLabel(neg_inputs_frame, text="Valor Total do Contrato", font=LABEL_FONT, anchor="w").grid(row=2, column=0, padx=15, pady=(5, 5), sticky="ew")
+neg_entry_valor_total = ctk.CTkEntry(neg_inputs_frame, height=35, corner_radius=8)
+neg_entry_valor_total.grid(row=3, column=0, padx=(15, 5), pady=(0, 10), sticky="ew")
 
-neg_frame_botoes = ctk.CTkFrame(master=tab_negociacoes, fg_color="transparent"); neg_frame_botoes.grid(row=10, column=0, columnspan=2, padx=10, pady=10); neg_frame_botoes.grid_columnconfigure((0, 1), weight=1)
-neg_button_gerar = ctk.CTkButton(master=neg_frame_botoes, text="Gerar Proposta", command=calcular_proposta); neg_button_gerar.grid(row=0, column=0, padx=(0, 5), sticky="ew")
-neg_button_limpar = ctk.CTkButton(master=neg_frame_botoes, text="Limpar", command=limpar_campos_negociacao, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE")); neg_button_limpar.grid(row=0, column=1, padx=(5, 0), sticky="ew")
+ctk.CTkLabel(neg_inputs_frame, text="Valor Já Pago", font=LABEL_FONT, anchor="w").grid(row=2, column=1, padx=(5, 15), pady=(5, 5), sticky="ew")
+neg_entry_valor_pago = ctk.CTkEntry(neg_inputs_frame, height=35, corner_radius=8)
+neg_entry_valor_pago.grid(row=3, column=1, padx=(5, 15), pady=(0, 10), sticky="ew")
 
-neg_textbox_resultado = ctk.CTkTextbox(master=tab_negociacoes, font=("Consolas", 14), state="disabled", wrap="word"); neg_textbox_resultado.grid(row=11, column=0, columnspan=2, padx=10, pady=10, sticky="nsew"); tab_negociacoes.grid_rowconfigure(11, weight=1)
-neg_label_creditos = ctk.CTkLabel(master=tab_negociacoes, text="Feito por Thiago Zanardi", font=("Roboto", 10)); neg_label_creditos.grid(row=12, column=0, columnspan=2, padx=10, pady=(10, 5))
+ctk.CTkLabel(neg_inputs_frame, text="Quantidade Total de Parcelas", font=LABEL_FONT, anchor="w").grid(row=4, column=0, columnspan=2, padx=15, pady=(5, 5), sticky="ew")
+neg_entry_qtd_parcelas = ctk.CTkEntry(neg_inputs_frame, height=35, corner_radius=8)
+neg_entry_qtd_parcelas.grid(row=5, column=0, columnspan=2, padx=15, pady=(0, 15), sticky="ew")
+
+neg_checkbox_entrada = ctk.CTkCheckBox(neg_inputs_frame, text="O cliente dará uma entrada?", command=toggle_entrada_fields, checkbox_height=20, checkbox_width=20, corner_radius=15, fg_color=PRIMARY_COLOR)
+neg_checkbox_entrada.grid(row=6, column=0, columnspan=2, padx=15, pady=10, sticky="w")
+neg_frame_entrada = ctk.CTkFrame(neg_inputs_frame, fg_color="transparent")
+neg_frame_entrada.grid(row=7, column=0, columnspan=2, padx=15, pady=(0, 15), sticky="ew")
+neg_frame_entrada.grid_columnconfigure((0,1), weight=1)
+neg_entry_qtd_entrada = ctk.CTkEntry(master=neg_frame_entrada, placeholder_text="Qtd. parcelas entrada", height=35, corner_radius=8)
+neg_entry_qtd_entrada.grid(row=0, column=0, padx=(0,5), pady=5, sticky="ew")
+neg_entry_valor_entrada = ctk.CTkEntry(master=neg_frame_entrada, placeholder_text="Valor parcela entrada", height=35, corner_radius=8)
+neg_entry_valor_entrada.grid(row=0, column=1, padx=(5,0), pady=5, sticky="ew")
+neg_frame_entrada.grid_remove()
+
+# --- RESULTADO ---
+neg_textbox_resultado = ctk.CTkTextbox(neg_main_frame, font=("Consolas", 14), state="disabled", wrap="word", corner_radius=10, fg_color=FRAME_COLOR)
+neg_textbox_resultado.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
+
+# --- BOTÕES ---
+neg_frame_botoes = ctk.CTkFrame(neg_main_frame, fg_color="transparent")
+neg_frame_botoes.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
+neg_frame_botoes.grid_columnconfigure((0, 1), weight=1)
+neg_button_gerar = ctk.CTkButton(neg_frame_botoes, text="Gerar Proposta", command=calcular_proposta, height=40, font=BUTTON_FONT, corner_radius=8, fg_color=PRIMARY_COLOR, hover_color="#0A5599")
+neg_button_gerar.grid(row=0, column=0, padx=(0, 10), sticky="ew")
+neg_button_limpar = ctk.CTkButton(neg_frame_botoes, text="Limpar", command=limpar_campos_negociacao, height=40, font=BUTTON_FONT, corner_radius=8, fg_color="transparent", border_color=SECONDARY_COLOR, border_width=2, hover_color=FRAME_COLOR)
+neg_button_limpar.grid(row=0, column=1, padx=(10, 0), sticky="ew")
+
+# --- CRÉDITOS ---
+neg_label_creditos = ctk.CTkLabel(neg_main_frame, text="Feito por Thiago Zanardi", font=(FONT_FAMILY, 10), text_color="gray50")
+neg_label_creditos.grid(row=4, column=0, padx=10, pady=(5, 10))
 #</editor-fold>
 
 #<editor-fold desc="Layout da Aba de Reservas">
-tab_reservas.grid_columnconfigure(0, weight=1)
-res_label_titulo = ctk.CTkLabel(master=tab_reservas, text="Calculadora de Cotação de Reservas", font=("Roboto", 24, "bold")); res_label_titulo.grid(row=0, column=0, padx=10, pady=(10, 15))
-res_combo_contrato = ctk.CTkComboBox(master=tab_reservas, values=["Antigo", "Novo"], command=update_reserva_ui); res_combo_contrato.grid(row=1, column=0, padx=10, pady=(0,5), sticky="ew")
+# --- FRAME PRINCIPAL COM SCROLL ---
+res_main_frame = ctk.CTkScrollableFrame(tab_reservas, fg_color="transparent", label_text=None)
+res_main_frame.pack(fill="both", expand=True, padx=0, pady=0)
+res_main_frame.grid_columnconfigure(0, weight=1)
 
-res_content_frame = ctk.CTkFrame(master=tab_reservas, fg_color="transparent")
-res_content_frame.grid(row=2, column=0, sticky="ew", padx=10)
+# --- TÍTULO ---
+res_label_titulo = ctk.CTkLabel(res_main_frame, text="Cotação de Reservas", font=TITLE_FONT, text_color=PRIMARY_COLOR)
+res_label_titulo.grid(row=0, column=0, padx=10, pady=(10, 20), sticky="ew")
+
+# --- FRAME OPÇÕES DO CONTRATO ---
+res_contract_options_frame = ctk.CTkFrame(res_main_frame, fg_color=FRAME_COLOR, corner_radius=10)
+res_contract_options_frame.grid(row=1, column=0, padx=10, pady=10, sticky="new")
+res_contract_options_frame.grid_columnconfigure(0, weight=1)
+ctk.CTkLabel(res_contract_options_frame, text="Opções do Contrato", font=SECTION_TITLE_FONT, anchor="w").grid(row=0, column=0, padx=15, pady=(15, 10), sticky="ew")
+res_combo_contrato = ctk.CTkComboBox(res_contract_options_frame, values=["Antigo", "Novo"], command=update_reserva_ui, height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_contrato.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
+res_content_frame = ctk.CTkFrame(res_contract_options_frame, fg_color="transparent")
+res_content_frame.grid(row=2, column=0, sticky="ew", padx=15, pady=(0, 15))
 res_content_frame.grid_columnconfigure(0, weight=1)
+res_frame_antigo = ctk.CTkFrame(res_content_frame, fg_color="transparent")
+res_frame_antigo.grid_columnconfigure((0,1), weight=1)
+res_combo_hotel = ctk.CTkComboBox(res_frame_antigo, values=["Bourbon Atibaia", "Bourbon Cataratas"], command=update_reserva_ui, height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_hotel.grid(row=0, column=0, padx=(0,5), pady=5, sticky="ew")
+res_combo_temporada = ctk.CTkComboBox(res_frame_antigo, values=[], command=update_reserva_ui, height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_temporada.grid(row=0, column=1, padx=(5,0), pady=5, sticky="ew")
+res_combo_acomodacao = ctk.CTkComboBox(res_frame_antigo, values=[], height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_acomodacao.grid(row=1, column=0, columnspan=2, padx=0, pady=5, sticky="ew")
+res_frame_novo = ctk.CTkFrame(res_content_frame, fg_color="transparent")
+res_frame_novo.grid_columnconfigure((0,1), weight=1)
+res_combo_tier_novo = ctk.CTkComboBox(res_frame_novo, values=list(REGRAS_TIER_NOVO.keys()), command=update_reserva_ui, height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_tier_novo.grid(row=0, column=0, padx=(0,5), pady=5, sticky="ew")
+res_combo_hotel_novo = ctk.CTkComboBox(res_frame_novo, values=["Bourbon Atibaia", "Bourbon Cataratas"], command=update_reserva_ui, height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_hotel_novo.grid(row=0, column=1, padx=(5,0), pady=5, sticky="ew")
+res_combo_temporada_novo = ctk.CTkComboBox(res_frame_novo, values=[], height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_temporada_novo.grid(row=1, column=0, padx=(0,5), pady=5, sticky="ew")
+res_combo_acomodacao_novo = ctk.CTkComboBox(res_frame_novo, values=[], height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_acomodacao_novo.grid(row=1, column=1, padx=(5,0), pady=5, sticky="ew")
+res_combo_fracionamento = ctk.CTkComboBox(res_frame_novo, values=["Abertura de Fracionamento", "Utilização de Fracionamento"], height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_fracionamento.grid(row=2, column=0, columnspan=2, padx=0, pady=5, sticky="ew")
 
-res_frame_antigo = ctk.CTkFrame(master=res_content_frame, fg_color="transparent"); res_frame_antigo.grid_columnconfigure((0,1), weight=1)
-res_combo_hotel = ctk.CTkComboBox(master=res_frame_antigo, values=["Bourbon Atibaia", "Bourbon Cataratas"], command=update_reserva_ui); res_combo_hotel.grid(row=0, column=0, padx=(0,5), pady=5, sticky="ew")
-res_combo_temporada = ctk.CTkComboBox(master=res_frame_antigo, values=[], command=update_reserva_ui); res_combo_temporada.grid(row=0, column=1, padx=(5,0), pady=5, sticky="ew")
-res_combo_acomodacao = ctk.CTkComboBox(master=res_frame_antigo, values=[]); res_combo_acomodacao.grid(row=1, column=0, columnspan=2, padx=0, pady=5, sticky="ew")
+# --- FRAME DETALHES DA ESTADIA ---
+res_details_frame = ctk.CTkFrame(res_main_frame, fg_color=FRAME_COLOR, corner_radius=10)
+res_details_frame.grid(row=2, column=0, padx=10, pady=10, sticky="new")
+res_details_frame.grid_columnconfigure((0, 1), weight=1)
 
-res_frame_novo = ctk.CTkFrame(master=res_content_frame, fg_color="transparent"); res_frame_novo.grid_columnconfigure((0,1), weight=1)
-res_combo_tier_novo = ctk.CTkComboBox(master=res_frame_novo, values=list(REGRAS_TIER_NOVO.keys()), command=update_reserva_ui); res_combo_tier_novo.grid(row=0, column=0, padx=(0,5), pady=5, sticky="ew")
-res_combo_hotel_novo = ctk.CTkComboBox(master=res_frame_novo, values=["Bourbon Atibaia", "Bourbon Cataratas"], command=update_reserva_ui); res_combo_hotel_novo.grid(row=0, column=1, padx=(5,0), pady=5, sticky="ew")
-res_combo_temporada_novo = ctk.CTkComboBox(master=res_frame_novo, values=[]); res_combo_temporada_novo.grid(row=1, column=0, padx=(0,5), pady=5, sticky="ew")
-res_combo_acomodacao_novo = ctk.CTkComboBox(master=res_frame_novo, values=[]); res_combo_acomodacao_novo.grid(row=1, column=1, padx=(5,0), pady=5, sticky="ew")
-res_combo_fracionamento = ctk.CTkComboBox(master=res_frame_novo, values=["Abertura de Fracionamento", "Utilização de Fracionamento"]); res_combo_fracionamento.grid(row=2, column=0, columnspan=2, padx=0, pady=5, sticky="ew")
+ctk.CTkLabel(res_details_frame, text="Detalhes da Estadia", font=SECTION_TITLE_FONT, anchor="w").grid(row=0, column=0, columnspan=2, padx=15, pady=(15, 10), sticky="ew")
 
-res_frame_datas = ctk.CTkFrame(master=tab_reservas, fg_color="transparent"); res_frame_datas.grid(row=3, column=0, padx=10, pady=(5,0), sticky="ew"); res_frame_datas.grid_columnconfigure((0,1), weight=1)
-ctk.CTkLabel(master=res_frame_datas, text="Check-in", anchor="w").grid(row=0, column=0, padx=(0,5), sticky="ew")
-ctk.CTkLabel(master=res_frame_datas, text="Check-out", anchor="w").grid(row=0, column=1, padx=(5,0), sticky="ew")
-res_entry_checkin = ctk.CTkEntry(master=res_frame_datas, placeholder_text="dd/mm/aaaa"); res_entry_checkin.grid(row=1, column=0, padx=(0,5), pady=(0,5), sticky="ew")
-res_entry_checkout = ctk.CTkEntry(master=res_frame_datas, placeholder_text="dd/mm/aaaa"); res_entry_checkout.grid(row=1, column=1, padx=(5,0), pady=(0,5), sticky="ew")
+ctk.CTkLabel(res_details_frame, text="Check-in", font=LABEL_FONT, anchor="w").grid(row=1, column=0, padx=15, pady=(5, 5), sticky="ew")
+res_entry_checkin = ctk.CTkEntry(res_details_frame, placeholder_text="dd/mm/aaaa", height=35, corner_radius=8)
+res_entry_checkin.grid(row=2, column=0, padx=15, pady=(0,10), sticky="ew")
 
-res_frame_hospedes = ctk.CTkFrame(master=tab_reservas, fg_color="transparent"); res_frame_hospedes.grid(row=4, column=0, padx=10, pady=0, sticky="ew"); res_frame_hospedes.grid_columnconfigure((0,1,2), weight=1)
-ctk.CTkLabel(master=res_frame_hospedes, text="Nº Adultos", anchor="w").grid(row=0, column=0, padx=(0,5), sticky="ew")
-ctk.CTkLabel(master=res_frame_hospedes, text="Crianças", anchor="w").grid(row=0, column=1, padx=5, sticky="ew")
-ctk.CTkLabel(master=res_frame_hospedes, text="Noites de Fim de Semana", anchor="w").grid(row=0, column=2, padx=(10,0), sticky="ew")
-res_entry_adultos = ctk.CTkEntry(master=res_frame_hospedes); res_entry_adultos.grid(row=1, column=0, padx=(0,5), pady=(0,5), sticky="ew")
-res_entry_criancas_geral = ctk.CTkEntry(master=res_frame_hospedes, placeholder_text="Nº Crianças (<12 anos)")
-res_frame_criancas_cataratas = ctk.CTkFrame(master=res_frame_hospedes, fg_color="transparent"); res_frame_criancas_cataratas.grid_columnconfigure((0,1,2), weight=1)
-res_entry_criancas_0a2 = ctk.CTkEntry(master=res_frame_criancas_cataratas, placeholder_text="CHD 0-2"); res_entry_criancas_0a2.grid(row=0, column=0, sticky="ew")
-res_entry_criancas_3a8 = ctk.CTkEntry(master=res_frame_criancas_cataratas, placeholder_text="CHD 3-8"); res_entry_criancas_3a8.grid(row=0, column=1, padx=5, sticky="ew")
-res_entry_criancas_9a11 = ctk.CTkEntry(master=res_frame_criancas_cataratas, placeholder_text="CHD 9-11"); res_entry_criancas_9a11.grid(row=0, column=2, sticky="ew")
-res_entry_noites_fds = ctk.CTkEntry(master=res_frame_hospedes); res_entry_noites_fds.grid(row=1, column=2, padx=(10,0), pady=(0,5), sticky="ew")
+ctk.CTkLabel(res_details_frame, text="Check-out", font=LABEL_FONT, anchor="w").grid(row=1, column=1, padx=15, pady=(5, 5), sticky="ew")
+res_entry_checkout = ctk.CTkEntry(res_details_frame, placeholder_text="dd/mm/aaaa", height=35, corner_radius=8)
+res_entry_checkout.grid(row=2, column=1, padx=15, pady=(0,10), sticky="ew")
 
-res_frame_alim = ctk.CTkFrame(master=tab_reservas, fg_color="transparent"); res_frame_alim.grid(row=5, column=0, padx=10, pady=0, sticky="ew"); res_frame_alim.grid_columnconfigure((0,1,2), weight=1)
-ctk.CTkLabel(master=res_frame_alim, text="Valor Alimentação/dia/adt", anchor="w").grid(row=0, column=0, sticky="ew")
-ctk.CTkLabel(master=res_frame_alim, text="Pagamento", anchor="w").grid(row=0, column=1, padx=(5,0), sticky="ew")
-res_entry_valor_alim = ctk.CTkEntry(master=res_frame_alim); res_entry_valor_alim.grid(row=1, column=0, padx=(0,5), pady=(0,5), sticky="ew")
-res_combo_pagto_alim = ctk.CTkComboBox(master=res_frame_alim, values=["Dinheiro", "Por Pontos"], command=toggle_valor_ponto_field); res_combo_pagto_alim.grid(row=1, column=1, padx=(5,0), pady=(0,5), sticky="ew")
-res_entry_valor_ponto = ctk.CTkEntry(master=res_frame_alim, placeholder_text="Valor do Ponto (ex: 0.17)")
+ctk.CTkLabel(res_details_frame, text="Nº Adultos", font=LABEL_FONT, anchor="w").grid(row=3, column=0, columnspan=2, padx=15, pady=(10,5), sticky="ew")
+res_entry_adultos = ctk.CTkEntry(res_details_frame, height=35, corner_radius=8)
+res_entry_adultos.grid(row=4, column=0, columnspan=2, padx=15, pady=(0,10), sticky="ew")
 
-ctk.CTkLabel(master=tab_reservas, text="Pontuação Disponível do Cliente", anchor="w").grid(row=6, column=0, padx=10, pady=(10,0), sticky="ew")
-res_entry_pontos_disponiveis = ctk.CTkEntry(master=tab_reservas); res_entry_pontos_disponiveis.grid(row=7, column=0, padx=10, pady=(0,10), sticky="ew")
-res_frame_botoes = ctk.CTkFrame(master=tab_reservas, fg_color="transparent"); res_frame_botoes.grid(row=8, column=0, pady=10); res_frame_botoes.grid_columnconfigure((0, 1), weight=1)
-res_button_gerar = ctk.CTkButton(master=res_frame_botoes, text="Gerar Cotação", command=gerar_cotacao); res_button_gerar.grid(row=0, column=0, padx=(0, 5), sticky="ew")
-res_button_limpar = ctk.CTkButton(master=res_frame_botoes, text="Limpar", command=limpar_campos_reserva, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE")); res_button_limpar.grid(row=0, column=1, padx=(5, 0), sticky="ew")
-res_textbox_resultado = ctk.CTkTextbox(master=tab_reservas, font=("Consolas", 14), state="disabled", wrap="word"); res_textbox_resultado.grid(row=9, column=0, padx=10, pady=10, sticky="nsew"); tab_reservas.grid_rowconfigure(9, weight=1)
+ctk.CTkLabel(res_details_frame, text="Crianças", font=LABEL_FONT, anchor="w").grid(row=5, column=0, columnspan=2, padx=15, pady=(10,5), sticky="ew")
+
+# Container para os widgets de crianças, para que eles apareçam/desapareçam no lugar certo
+res_criancas_container_geral = ctk.CTkFrame(res_details_frame, fg_color="transparent")
+res_criancas_container_geral.grid(row=6, column=0, columnspan=2, padx=15, pady=0, sticky="ew")
+res_criancas_container_geral.grid_columnconfigure(0, weight=1)
+
+ctk.CTkLabel(res_details_frame, text="Noites de Fim de Semana", font=LABEL_FONT, anchor="w").grid(row=7, column=0, columnspan=2, padx=15, pady=(10,5), sticky="ew")
+res_entry_noites_fds = ctk.CTkEntry(res_details_frame, height=35, corner_radius=8)
+res_entry_noites_fds.grid(row=8, column=0, columnspan=2, padx=15, pady=(0,15), sticky="ew")
+
+# Widgets de Crianças agora pertencem ao novo container
+res_entry_criancas_geral = ctk.CTkEntry(master=res_criancas_container_geral, placeholder_text="Nº Crianças (<12 anos)", height=35, corner_radius=8)
+res_frame_criancas_cataratas = ctk.CTkFrame(master=res_criancas_container_geral, fg_color="transparent")
+res_frame_criancas_cataratas.grid_columnconfigure((0,1,2), weight=1)
+
+ctk.CTkLabel(res_frame_criancas_cataratas, text="CHD 0-2Y", font=SMALL_LABEL_FONT).grid(row=0, column=0, sticky="s", padx=2, pady=0)
+ctk.CTkLabel(res_frame_criancas_cataratas, text="CHD 3-8Y", font=SMALL_LABEL_FONT).grid(row=0, column=1, sticky="s", padx=2, pady=0)
+ctk.CTkLabel(res_frame_criancas_cataratas, text="CHD 9-11Y", font=SMALL_LABEL_FONT).grid(row=0, column=2, sticky="s", padx=2, pady=0)
+
+res_entry_criancas_0a2 = ctk.CTkEntry(master=res_frame_criancas_cataratas, placeholder_text="", height=35, corner_radius=8); res_entry_criancas_0a2.grid(row=1, column=0, padx=(0,5), sticky="ew")
+res_entry_criancas_3a8 = ctk.CTkEntry(master=res_frame_criancas_cataratas, placeholder_text="", height=35, corner_radius=8); res_entry_criancas_3a8.grid(row=1, column=1, padx=5, sticky="ew")
+res_entry_criancas_9a11 = ctk.CTkEntry(master=res_frame_criancas_cataratas, placeholder_text="", height=35, corner_radius=8); res_entry_criancas_9a11.grid(row=1, column=2, padx=(5,0), sticky="ew")
+
+# --- FRAME CUSTOS ADICIONAIS ---
+res_costs_frame = ctk.CTkFrame(res_main_frame, fg_color=FRAME_COLOR, corner_radius=10)
+res_costs_frame.grid(row=3, column=0, padx=10, pady=10, sticky="new")
+res_costs_frame.grid_columnconfigure((0, 1), weight=1)
+ctk.CTkLabel(res_costs_frame, text="Custos Adicionais", font=SECTION_TITLE_FONT, anchor="w").grid(row=0, column=0, columnspan=2, padx=15, pady=(15, 10), sticky="ew")
+ctk.CTkLabel(res_costs_frame, text="Valor Alimentação/dia/adt", font=LABEL_FONT, anchor="w").grid(row=1, column=0, padx=15, pady=(5,5), sticky="ew")
+res_entry_valor_alim = ctk.CTkEntry(res_costs_frame, height=35, corner_radius=8)
+res_entry_valor_alim.grid(row=2, column=0, padx=(15,5), pady=(0,15), sticky="ew")
+ctk.CTkLabel(res_costs_frame, text="Pagamento Alimentação", font=LABEL_FONT, anchor="w").grid(row=1, column=1, padx=(5,15), pady=(5,5), sticky="ew")
+res_combo_pagto_alim = ctk.CTkComboBox(res_costs_frame, values=["Dinheiro", "Por Pontos"], command=toggle_valor_ponto_field, height=35, button_color=PRIMARY_COLOR, corner_radius=8)
+res_combo_pagto_alim.grid(row=2, column=1, padx=(5,15), pady=(0,15), sticky="ew")
+res_entry_valor_ponto = ctk.CTkEntry(res_costs_frame, placeholder_text="Valor do Ponto (ex: 0.17)", height=35, corner_radius=8)
+ctk.CTkLabel(res_costs_frame, text="Pontuação Disponível do Cliente", font=LABEL_FONT, anchor="w").grid(row=3, column=0, columnspan=2, padx=15, pady=(5,5), sticky="ew")
+res_entry_pontos_disponiveis = ctk.CTkEntry(res_costs_frame, height=35, corner_radius=8)
+res_entry_pontos_disponiveis.grid(row=4, column=0, columnspan=2, padx=15, pady=(0,15), sticky="ew")
+
+# --- RESULTADO ---
+res_textbox_resultado = ctk.CTkTextbox(res_main_frame, font=("Consolas", 14), state="disabled", wrap="word", corner_radius=10, fg_color=FRAME_COLOR, height=250)
+res_textbox_resultado.grid(row=4, column=0, padx=10, pady=10, sticky="nsew")
+
+# --- BOTÕES ---
+res_frame_botoes = ctk.CTkFrame(res_main_frame, fg_color="transparent")
+res_frame_botoes.grid(row=5, column=0, padx=10, pady=10, sticky="ew")
+res_frame_botoes.grid_columnconfigure((0, 1), weight=1)
+res_button_gerar = ctk.CTkButton(master=res_frame_botoes, text="Gerar Cotação", command=gerar_cotacao, height=40, font=BUTTON_FONT, corner_radius=8, fg_color=PRIMARY_COLOR, hover_color="#0A5599")
+res_button_gerar.grid(row=0, column=0, padx=(0, 10), sticky="ew")
+res_button_limpar = ctk.CTkButton(master=res_frame_botoes, text="Limpar", command=limpar_campos_reserva, height=40, font=BUTTON_FONT, corner_radius=8, fg_color="transparent", border_color=SECONDARY_COLOR, border_width=2, hover_color=FRAME_COLOR)
+res_button_limpar.grid(row=0, column=1, padx=(10, 0), sticky="ew")
+
 #</editor-fold>
 
 app.after(10, initialize_ui)
